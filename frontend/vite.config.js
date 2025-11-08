@@ -18,5 +18,9 @@ export default defineConfig({
       },
     },
   },
+  // Ensure build output matches Render's expected publish directory `build`
+  build: {
+    outDir: 'build'
+  }
 })
 
