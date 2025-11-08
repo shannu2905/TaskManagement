@@ -26,7 +26,14 @@ const app = express();
 const httpServer = createServer(app);
 // Robust CORS handling: allow the configured FRONTEND_URL plus localhost origins during development.
 // This ensures preflight requests get the correct Access-Control-Allow-* headers.
-const allowedFrontend = process.env.FRONTEND_URL || 'http://localhost:5173';
+// Compose allowed origins: FRONTEND_URL env, common Render frontend and any extra configured
+const defaultFrontend = process.env.FRONTEND_URL || 'http://localhost:5173';
+const renderFrontendDefault = 'https://tmtc-frontend.onrender.com';
+
+// Additional origins may be provided as comma-separated list in ALLOWED_ORIGINS env
+const extraOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
+const allowedOrigins = Array.from(new Set([defaultFrontend, renderFrontendDefault, ...extraOrigins]));
 
 const isLocalHostOrigin = (origin) => {
   if (!origin) return false;
@@ -42,8 +49,9 @@ const corsOriginHandler = (origin, callback) => {
   // Allow server-to-server requests with no origin
   if (!origin) return callback(null, true);
 
-  if (origin === allowedFrontend || isLocalHostOrigin(origin)) {
-    // Allowed origin
+  // Normalize origin by trimming
+  const ori = origin && origin.trim();
+  if (allowedOrigins.includes(ori) || isLocalHostOrigin(ori)) {
     return callback(null, true);
   }
 
