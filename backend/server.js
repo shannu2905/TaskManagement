@@ -76,6 +76,32 @@ app.options('*', cors({ origin: (origin, callback) => corsOriginHandler(origin, 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Ensure CORS headers are present on all responses for allowed origins.
+// This is an explicit fallback in case some middleware or a proxy swallows
+// preflight responses — it sets the Access-Control-Allow-* headers early.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) return next();
+
+  try {
+    if (origin === allowedFrontend || isLocalHostOrigin(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+      res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // If this is a preflight request, respond immediately
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
+
 // Socket.IO connection
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
