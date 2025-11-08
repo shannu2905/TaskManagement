@@ -204,6 +204,11 @@ FRONTEND_URL=http://localhost:5173
 VITE_API_URL=http://localhost:5000/api
 ```
 
+If you deploy your backend to Render (for example at `https://tmtc-backend.onrender.com`), set:
+```env
+VITE_API_URL=https://tmtc-backend.onrender.com/api
+```
+
 ## 📝 API Routes
 
 ### Authentication
