@@ -24,45 +24,55 @@ ensureSecrets();
 
 const app = express();
 const httpServer = createServer(app);
-// Dynamic CORS origin checker: allow configured FRONTEND_URL and any localhost origin (different dev ports)
-const corsOriginChecker = (origin, callback) => {
-  // Allow requests with no origin (e.g., server-to-server or same-origin)
-  if (!origin) return callback(null, true);
+// Robust CORS handling: allow the configured FRONTEND_URL plus localhost origins during development.
+// This ensures preflight requests get the correct Access-Control-Allow-* headers.
+const allowedFrontend = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+const isLocalHostOrigin = (origin) => {
+  if (!origin) return false;
   try {
-    const url = new URL(origin);
-    const hostname = url.hostname;
-    const allowedFrontend = process.env.FRONTEND_URL || 'http://localhost:5173';
-    if (origin === allowedFrontend) {
-      console.log('[CORS] allowed origin (matches FRONTEND_URL):', origin);
-      return callback(null, true);
-    }
-    // Allow any localhost (including different dev ports like 5174)
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      console.log('[CORS] allowed origin (localhost):', origin);
-      return callback(null, true);
-    }
+    const hostname = new URL(origin).hostname;
+    return hostname === 'localhost' || hostname === '127.0.0.1';
   } catch (e) {
-    // If origin is malformed, reject
-    console.warn('[CORS] invalid origin value:', origin);
-    return callback(new Error('Invalid origin'), false);
+    return false;
+  }
+};
+
+const corsOriginHandler = (origin, callback) => {
+  // Allow server-to-server requests with no origin
+  if (!origin) return callback(null, true);
+
+  if (origin === allowedFrontend || isLocalHostOrigin(origin)) {
+    // Allowed origin
+    return callback(null, true);
   }
 
-  console.warn('[CORS] origin not allowed:', origin);
+  console.warn('[CORS] origin not allowed:', origin, 'allowedFrontend:', allowedFrontend);
   return callback(new Error('Not allowed by CORS'), false);
 };
 
 const io = new Server(httpServer, {
   cors: {
-    origin: corsOriginChecker,
+    origin: (origin, callback) => {
+      try {
+        return corsOriginHandler(origin, callback);
+      } catch (e) {
+        return callback(e, false);
+      }
+    },
     methods: ['GET', 'POST', 'PATCH', 'DELETE']
   }
 });
 
-// Middleware
+// Middleware - enable CORS for routes and handle preflight
 app.use(cors({
-  origin: (origin, callback) => corsOriginChecker(origin, callback),
-  credentials: true
+  origin: (origin, callback) => corsOriginHandler(origin, callback),
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
+
+// Handle preflight across the board
+app.options('*', cors({ origin: (origin, callback) => corsOriginHandler(origin, callback), credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
